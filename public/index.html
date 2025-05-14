@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+    <title>Gemini Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        .container {
+            width: 90%;
+            max-width: 800px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 80vh;
+        }
+        .header {
+            background-color: #4285F4;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5em;
+            flex-grow: 1;
+        }
+        .chat-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .input-area {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+        #user-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .action-button {
+            padding: 10px 15px;
+            margin-left: 10px;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .action-button:hover {
+            background-color: #2b76e5;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 10px 15px;
+            border-radius: 5px;
+            max-width: 70%;
+            word-wrap: break-word;
+            position: relative;
+        }
+        .user-message {
+            background-color: #e2f1ff;
+            align-self: flex-end;
+        }
+        .bot-message {
+            background-color: #f0f0f0;
+            align-self: flex-start;
+        }
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            margin: 5px 0;
+            padding: 10px 15px;
+            border-radius: 5px;
+            background-color: #f0f0f0;
+            font-style: italic;
+            color: #666;
+        }
+        .timestamp {
+            font-size: 10px;
+            color: #999;
+            margin-top: 5px;
+            text-align: right;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -300px;
+            width: 250px;
+            height: 100%;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            transition: left 0.3s;
+            z-index: 1000;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .sidebar.open {
+            left: 0;
+        }
+        .sidebar-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 999;
+        }
+        .sidebar-backdrop.open {
+            display: block;
+        }
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .sidebar-close {
+            cursor: pointer;
+            font-size: 20px;
+        }
+        .chat-history-item {
+            padding: 10px;
+            margin: 5px 0;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .chat-history-item:hover {
+            background-color: #e0e0e0;
+        }
+        .new-chat-button {
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+        }
+        .menu-button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        .settings-panel {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            margin-top: 20px;
+        }
+        .settings-panel h3 {
+            margin-top: 0;
+        }
+        .model-select {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>Gemini Chatbot</h2>
+            <span class="sidebar-close" id="close-sidebar">&times;</span>
+        </div>
+        
+        <div class="new-chat-button" id="new-chat">
+            + Tạo cuộc trò chuyện mới
+        </div>
+        
+        <h3>Lịch sử trò chuyện</h3>
+        <div id="chat-history-list">
+            <!-- Danh sách lịch sử trò chuyện sẽ được thêm vào đây -->
+        </div>
+        
+        <div class="settings-panel">
+            <h3>Cài đặt</h3>
+            <label for="model-select">Chọn Model:</label>
+            <select id="model-select" class="model-select">
+                <option value="gemini-pro">Gemini Pro</option>
+                <option value="gemini-pro-vision">Gemini Pro Vision</option>
+                <option value="gemini-ultra">Gemini Ultra</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <!-- Main chat container -->
+    <div class="container">
+        <div class="header">
+            <button class="menu-button" id="menu-button">☰</button>
+            <h1>Gemini Chatbot</h1>
+        </div>
+        
+        <div class="chat-area" id="chat-area">
+            <div class="message bot-message">
+                Xin chào! Tôi là Gemini Chatbot. Bạn có câu hỏi gì không?
+                <div class="timestamp">Bây giờ</div>
+            </div>
+            <div class="typing-indicator" id="typing-indicator">
+                Đang nhập...
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <input type="text" id="user-input" placeholder="Nhập tin nhắn của bạn..." autocomplete="off">
+            <button id="send-button" class="action-button">Gửi</button>
+        </div>
+    </div>
+
+    <script>
+        // Biến toàn cục
+        let currentSessionId = generateSessionId();
+        const sessions = {};
+
+        // Tạo ID phiên ngẫu nhiên
+        function generateSessionId() {
+            return 'session_' + Math.random().toString(36).substring(2, 15);
+        }
+
+        // Định dạng thời gian
+        function formatTimestamp(date) {
+            return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Thêm tin nhắn vào khu vực chat
+        function addMessage(message, sender, timestamp = new Date()) {
+            const chatArea = document.getElementById('chat-area');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            messageDiv.classList.add(sender === 'user' ? 'user-message' : 'bot-message');
+            
+            const messageContent = document.createElement('div');
+            messageContent.innerHTML = DOMPurify.sanitize(marked.parse(message)); // chuyển markdown thành HTML, Dùng DOMPurify để chống XSS
+            messageDiv.appendChild(messageContent);
+            
+            const timestampDiv = document.createElement('div');
+            timestampDiv.classList.add('timestamp');
+            timestampDiv.textContent = formatTimestamp(timestamp);
+            messageDiv.appendChild(timestampDiv);
+            
+            chatArea.appendChild(messageDiv);
+            
+            // Cuộn xuống để nhìn thấy tin nhắn mới nhất
+            chatArea.scrollTop = chatArea.scrollHeight;
+            
+            // Lưu tin nhắn vào phiên hiện tại
+            if (!sessions[currentSessionId]) {
+                sessions[currentSessionId] = {
+                    messages: [],
+                    title: message.substring(0, 30) + '...'  // Sử dụng tin nhắn đầu tiên làm tiêu đề
+                };
+            }
+            
+            // Lưu tin nhắn vào phiên hiện tại
+            sessions[currentSessionId].messages.push({
+                content: message,
+                role: sender === 'user' ? 'user' : 'assistant',
+                timestamp: timestamp
+            });
+            
+            // Cập nhật danh sách lịch sử trò chuyện
+            updateChatHistoryList();
+        }
+
+        // Gửi tin nhắn đến server
+        async function sendMessage() {
+            const userInput = document.getElementById('user-input');
+            const message = userInput.value.trim();
+            const modelOption = document.getElementById('model-select').value;
+            
+            if (message) {
+                // Hiển thị tin nhắn của người dùng
+                addMessage(message, 'user');
+                userInput.value = '';
+                
+                // Hiển thị chỉ báo gõ
+                document.getElementById('typing-indicator').style.display = 'block';
+                
+                try {
+                    // Gọi API backend
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: message,
+                            sessionId: currentSessionId,
+                            modelOption: modelOption
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    // Ẩn chỉ báo gõ
+                    document.getElementById('typing-indicator').style.display = 'none';
+                    
+                    if (response.ok) {
+                        addMessage(data.response, 'bot');
+                    } else {
+                        addMessage(`Lỗi: ${data.error}`, 'bot');
+                    }
+                } catch (error) {
+                    document.getElementById('typing-indicator').style.display = 'none';
+                    addMessage(`Đã xảy ra lỗi: ${error.message}`, 'bot');
+                    console.error('Error:', error);
+                }
+            }
+        }
+
+        // Tạo cuộc trò chuyện mới
+        function createNewChat() {
+            // Lưu phiên hiện tại trước khi tạo mới
+            if (sessions[currentSessionId] && sessions[currentSessionId].messages.length > 0) {
+                // (đã lưu ở hàm addMessage)
+            }
+            
+            // Tạo phiên mới
+            currentSessionId = generateSessionId();
+            
+            // Xóa tất cả tin nhắn hiện tại
+            document.getElementById('chat-area').innerHTML = `
+                <div class="message bot-message">
+                    Xin chào! Tôi là Gemini Chatbot. Bạn có câu hỏi gì không?
+                    <div class="timestamp">${formatTimestamp(new Date())}</div>
+                </div>
+                <div class="typing-indicator" id="typing-indicator">
+                    Đang nhập...
+                </div>
+            `;
+            
+            // Đóng sidebar
+            toggleSidebar();
+        }
+
+        // Cập nhật danh sách lịch sử trò chuyện
+        function updateChatHistoryList() {
+            const historyList = document.getElementById('chat-history-list');
+            historyList.innerHTML = '';
+            
+            Object.keys(sessions).forEach(sessionId => {
+                const session = sessions[sessionId];
+                if (session.messages.length > 0) {
+                    const historyItem = document.createElement('div');
+                    historyItem.classList.add('chat-history-item');
+                    historyItem.textContent = session.title;
+                    historyItem.addEventListener('click', () => loadChatSession(sessionId));
+                    historyList.appendChild(historyItem);
+                }
+            });
+        }
+
+        // Tải cuộc trò chuyện từ lịch sử
+        function loadChatSession(sessionId) {
+            if (sessions[sessionId]) {
+                currentSessionId = sessionId;
+                
+                // Xóa tất cả tin nhắn hiện tại
+                const chatArea = document.getElementById('chat-area');
+                chatArea.innerHTML = `
+                    <div class="typing-indicator" id="typing-indicator">
+                        Đang nhập...
+                    </div>
+                `;
+                
+                // Hiển thị tin nhắn từ phiên đã chọn
+                sessions[sessionId].messages.forEach(msg => {
+                    addMessage(msg.content, msg.role === 'user' ? 'user' : 'bot', msg.timestamp);
+                });
+                
+                // Đóng sidebar
+                toggleSidebar();
+            }
+        }
+
+        // Bật/tắt sidebar
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebar-backdrop').classList.toggle('open');
+        }
+
+        // Xử lý sự kiện khi tài liệu đã tải xong
+        document.addEventListener('DOMContentLoaded', () => {
+            // Sự kiện cho nút gửi
+            document.getElementById('send-button').addEventListener('click', sendMessage);
+            document.getElementById('user-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Sự kiện cho sidebar
+            document.getElementById('menu-button').addEventListener('click', toggleSidebar);
+            document.getElementById('close-sidebar').addEventListener('click', toggleSidebar);
+            document.getElementById('sidebar-backdrop').addEventListener('click', toggleSidebar);
+            document.getElementById('new-chat').addEventListener('click', createNewChat);
+            
+            // Tải danh sách model từ server (nếu có API)
+            fetch('/api/models')
+                .then(response => response.json())
+                .then(models => {
+                    const select = document.getElementById('model-select');
+                    select.innerHTML = '';
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = model.name;
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => console.error('Không thể tải danh sách model:', error));
+        });
+    </script>
+</body>
+</html>
